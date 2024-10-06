@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+
 const registeredUser = asyncHandler(async (req, res) => {
   //getting details from Frontend
   const { fullName, email, password, username } = req.body;
@@ -25,17 +26,13 @@ const registeredUser = asyncHandler(async (req, res) => {
   // check for avatar file
   console.log(req.files);
 
-  const avatarLocalPath = req.files?.avatar[0]?.path;
-  //const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  const avatarLocalPath = req.files?.avatar && Array.isArray(req.files.avatar) && req.files.avatar.length > 0 ? req.files.avatar[0].path : null;
 
-  let coverImageLocalPath;
-  if (
-    req.files &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
-  ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
+  let coverImageLocalPath = null;
+  if (req.files?.coverImage && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+      coverImageLocalPath = req.files.coverImage[0].path;
   }
+  
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is required");
@@ -44,6 +41,7 @@ const registeredUser = asyncHandler(async (req, res) => {
   //upload on cloudinary
   // Upload to Cloudinary
   const avatarUploadResponse = await uploadOnCloudinary(avatarLocalPath);
+  
   const coverImageUploadResponse = coverImageLocalPath
     ? await uploadOnCloudinary(coverImageLocalPath)
     : null;
@@ -62,7 +60,7 @@ const registeredUser = asyncHandler(async (req, res) => {
     password,
     email,
     avatar: avatarUrl,
-    coverImage: coverImageUrl ,
+    coverImage: coverImageUrl,
   });
 
   //removing password and refresh token from response
@@ -79,4 +77,104 @@ const registeredUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "user registered successfully"));
 });
 
-export { registeredUser };
+// method for generating access and refresh token
+const generateAcessTokenAndRefreshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    if(!user){
+      throw new ApiError(401, "user not found!!");  
+    }
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    user.save({ validateBeforeSave: false });
+
+    return { accessToken, refreshToken };
+  }
+  catch {
+    throw new ApiError(500, 'something went wrong !!')
+  }
+};
+
+const loginUser = asyncHandler(async (req, res) => {
+  //getting details from user
+  const { username, email, password } = req.body;
+
+  //check if the user enter the details or not
+  if (!username || (!email && !password)) {
+    throw new ApiError(400, "all field are required");
+  }
+
+  //check if user exists
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+  if (!user) {
+    throw new ApiError(404, "user not found!!");
+  }
+
+  // check for password
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "wrong password ");
+  }
+
+  //generate access and refresh token
+  const { accessToken, refreshToken } = await generateAcessTokenAndRefreshToken(user._id);
+  //removing password and refresh token from response
+  const authenticatedUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+  const options = {
+    httpOnly: true,
+    secure: true
+  }
+  //checking for response
+  if (!authenticatedUser) {
+    throw new ApiError(409, "something went wrong while authenticating the user ");
+  }
+  return res
+    .status(200)
+    .cookie('accessToken', accessToken, options)
+    .cookie('refreshToken', refreshToken, options)
+    .json(new ApiResponse(200, { authenticatedUser, accessToken, refreshToken }, "user logged in successfully"));
+
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  // remove refresh token  
+  // remove cookies
+  //we have access of user throw middleware
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined
+      }
+    },
+    {
+      new: true
+    }
+  )
+  const options = {
+    httpOnly: true,
+    secure: true
+  }
+
+  return res.status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(
+      200,
+      {}, "user logged out"
+    ))
+
+
+})
+
+
+
+
+export { registeredUser, loginUser, logoutUser };

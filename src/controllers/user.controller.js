@@ -3,7 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-
+import jwt from 'jsonwebtoken'
 
 const registeredUser = asyncHandler(async (req, res) => {
   //getting details from Frontend
@@ -30,9 +30,9 @@ const registeredUser = asyncHandler(async (req, res) => {
 
   let coverImageLocalPath = null;
   if (req.files?.coverImage && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-      coverImageLocalPath = req.files.coverImage[0].path;
+    coverImageLocalPath = req.files.coverImage[0].path;
   }
-  
+
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar file is required");
@@ -41,7 +41,7 @@ const registeredUser = asyncHandler(async (req, res) => {
   //upload on cloudinary
   // Upload to Cloudinary
   const avatarUploadResponse = await uploadOnCloudinary(avatarLocalPath);
-  
+
   const coverImageUploadResponse = coverImageLocalPath
     ? await uploadOnCloudinary(coverImageLocalPath)
     : null;
@@ -81,8 +81,8 @@ const registeredUser = asyncHandler(async (req, res) => {
 const generateAcessTokenAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
-    if(!user){
-      throw new ApiError(401, "user not found!!");  
+    if (!user) {
+      throw new ApiError(401, "user not found!!");
     }
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
@@ -135,6 +135,9 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!authenticatedUser) {
     throw new ApiError(409, "something went wrong while authenticating the user ");
   }
+
+
+
   return res
     .status(200)
     .cookie('accessToken', accessToken, options)
@@ -174,7 +177,65 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 })
 
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  try {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    
+    if (!incomingRefreshToken) {
+      throw new ApiError(404, "Refresh token not found");
+    }
+
+    // Verify the refresh token
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+    
+    if (!decodedToken) {
+      throw new ApiError(401, "Unauthorized access");
+    }
+
+    // Find the user by the token's _id
+    const user = await User.findById(decodedToken._id);
+    
+    if (!user) {
+      throw new ApiError(404, "Invalid refresh token");
+    }
+
+    // Check if the incoming refresh token matches the user's stored refresh token
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(400, "Refresh token is expired or used");
+    }
+
+    // Generate new access and refresh tokens
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await generateAcessTokenAndRefreshToken(user._id);
+    
+    const options = {
+      httpOnly: true,
+      secure: true, // Ensure this is set correctly for your environment (set to true for HTTPS)
+      sameSite: "Strict", // Optional: add for enhanced security
+    };
+
+    // Clear old cookies before setting new ones
+    res.clearCookie("accessToken", options);
+    res.clearCookie("refreshToken", options);
+
+    // Set new cookies for access and refresh tokens
+    return res
+      .status(200)
+      .cookie("accessToken", newAccessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(new ApiResponse(200, 
+        { accessToken: newAccessToken, refreshToken: newRefreshToken }, 
+        "Access token refreshed successfully"
+      ));
+  } catch (error) {
+    console.error(error);
+    throw new ApiError(500, "Invalid refresh token");
+  }
+});
 
 
 
-export { registeredUser, loginUser, logoutUser };
+
+export { registeredUser, loginUser, logoutUser, refreshAccessToken };

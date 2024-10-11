@@ -288,58 +288,53 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 // const updateAccountDetail = asyncHandler(async (req, res) => {
-    // const { currFullName, currUsername, newFullName, newUsername } = req.body;
-    // const user=await User.findById(req.user?._id)
-    // if(!user){
-    //   throw new ApiError(404, "user not found")
-    // }
-    // if(!(user.fullName=== currFullName)){
-    //   throw new ApiError(400,"wrong fullname")
-    // }
-    // if(!(user.username=== currUsername)){
-    //   throw new ApiError(400,"wrong username")
-    // }
-    // user.fullName= newFullName;
-    // user.username= newUsername;
-    // return res
-    // .status(200)
-    // .json(new ApiResponse(200,{},"account details update successfully"))
+// const { currFullName, currUsername, newFullName, newUsername } = req.body;
+// const user=await User.findById(req.user?._id)
+// if(!user){
+//   throw new ApiError(404, "user not found")
+// }
+// if(!(user.fullName=== currFullName)){
+//   throw new ApiError(400,"wrong fullname")
+// }
+// if(!(user.username=== currUsername)){
+//   throw new ApiError(400,"wrong username")
+// }
+// user.fullName= newFullName;
+// user.username= newUsername;
+// return res
+// .status(200)
+// .json(new ApiResponse(200,{},"account details update successfully"))
 // });
-    //other method or more optimized method
+//other method or more optimized method
 
-    const updateAccountDetails = asyncHandler(async (req, res) => {
-        const { fullName, email } = req.body;
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body;
 
-        if (!fullName || !email) {
-            throw new ApiError(400, "All fields are required");
-        }
+    if (!fullName || !email) {
+        throw new ApiError(400, "All fields are required");
+    }
 
-        const user = await User.findByIdAndUpdate(
-            await req.user?._id,
-            {
-                $set: {
-                    fullName,
-                    email,
-                },
+    const user = await User.findByIdAndUpdate(
+        await req.user?._id,
+        {
+            $set: {
+                fullName,
+                email,
             },
-            { new: true }
-        ).select("-password");
+        },
+        { new: true }
+    ).select("-password");
 
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    user,
-                    "Account details updated successfully"
-                )
-            );
-    });
-
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, user, "Account details updated successfully")
+        );
+});
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
     const avatarLocalPath = req.file?.path;
-    
+
     if (!avatarLocalPath) {
         throw new ApiError(400, "File not found");
     }
@@ -378,7 +373,6 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     );
 });
 
-
 const updateUserCoverImage = asyncHandler(async (req, res) => {
     const coverImageLocalPath = req.file?.path;
     if (!coverImageLocalPath) {
@@ -399,7 +393,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
         req.user?._id,
         {
-            $set: {coverImage : coverImage.url}
+            $set: { coverImage: coverImage.url },
         },
         {
             new: true,
@@ -410,10 +404,119 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "user not found");
     }
     res.status(200).json(
-        new ApiResponse(200, updatedUser, "coverImage file changed successfully")
+        new ApiResponse(
+            200,
+            updatedUser,
+            "coverImage file changed successfully"
+        )
     );
 });
 
+const userChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+    if (!username) {
+        throw new ApiError(400, "username is required");
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase(),
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscriber",
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            },
+        },
+        {
+            $addFields: {
+                isSubscribed: {
+                    $in: [req.user?._id, "$subscribers.subscriber"],
+                },
+                then: true,
+                else: false,
+            },
+        },
+        {
+            $project: {
+                fullName: 1,
+                email: 1,
+                avatar: 1,
+                coverImage: 1,
+                isSubscribed: 1,
+                subscriber: 1,
+                subscriberTo: 1,
+                username: 1,
+            },
+        },
+    ]);
+
+    if (!channel?.length) {
+        throw new ApiError(404, "user not found");
+    }
+
+    res.status(200).json(
+        new ApiResponse(200, channel[0], "user profile fetched successfully")
+    );
+});
+
+const userWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.types.objectId(req.user._id),
+            },
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "userWatchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: {
+                    $lookup: {
+                        from: "user",
+                        localField: "owner",
+                        foreignField: "_id",
+                        as: "owner",
+                        pipeline: {
+                            $project: {
+                                // check it while running the code -put it outside of this nest and then see how will it work
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1,
+                            },
+                        },
+                    },
+                    $addFields: {
+                        owner: {
+                            $first: "$owner", // this will convert the pipeline which shows the watch history into object from array and make it more easily accessible for the frontend developer
+                        },
+                    },
+                },
+            },
+        },
+    ]);
+    return res
+    .status(200)
+    .json( new ApiResponse(
+        200,
+        user[0].watchHistory,
+        "watch history fetched successfully"
+    ))
+});
 export {
     registeredUser,
     loginUser,
@@ -424,4 +527,6 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
+    userChannelProfile,
+    userWatchHistory,
 };

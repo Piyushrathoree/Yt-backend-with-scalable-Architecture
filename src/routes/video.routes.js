@@ -33,7 +33,7 @@ router
     );
 
 router
-    .route("/:videoId")
+    .route("/:videoId")//isme frontend se id ayegi kaise ??
     .get(getVideoById)
     .delete(deleteVideo)
     .patch(upload.single("thumbnail"), updateVideo);

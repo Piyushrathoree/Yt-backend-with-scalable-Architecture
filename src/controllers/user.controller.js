@@ -26,7 +26,7 @@ const registeredUser = asyncHandler(async (req, res) => {
     }
 
     // check for avatar file
-    console.log(req.files);
+    // console.log(req.files);
 
     const avatarLocalPath =
         req.files?.avatar &&
@@ -178,8 +178,11 @@ const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set: {
-                refreshToken: undefined,
+            // $set: {
+            //     refreshToken: undefined,
+            // },//one more method to do the same thing
+            $unset: {
+                refreshToken: 1,
             },
         },
         {

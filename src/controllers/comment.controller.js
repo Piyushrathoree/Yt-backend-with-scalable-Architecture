@@ -5,7 +5,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
-    //TODO: get all comments for a video
     try {
         const { videoId } = req.params;
         if (!videoId) {
@@ -17,7 +16,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         }
 
         const comments = await Comment.find({ video: videoId })
-            .populate("user", "username avatar")
+            .populate("user", "username ")
             .skip((page - 1) * limit)
             .limit(limit);
         if (!comments) {

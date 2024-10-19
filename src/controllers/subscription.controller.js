@@ -4,7 +4,6 @@ import { subscription } from "../models/subscription.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { populate } from "dotenv";
 
 const toggleSubscription = asyncHandler(async (req, res) => {
     const { channelId } = req.params;
@@ -98,6 +97,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 
         // Extract subscriber IDs from the subscriptions
         const subscriberIds = subscriptions.map((sub) => sub.subscriber);
+        console.log(subscriberIds);
 
         // Fetch all users who are subscribers
         const subscribers = await User.find({
@@ -158,7 +158,5 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
         return res.status(500).json(new ApiError(500, "Server error", error));
     }
 });
-
-
 
 export { toggleSubscription, getUserChannelSubscribers, getSubscribedChannels };

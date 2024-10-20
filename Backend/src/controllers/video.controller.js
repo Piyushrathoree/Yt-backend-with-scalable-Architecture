@@ -8,7 +8,8 @@ import {
     deleteFromCloudinary,
     uploadOnCloudinary,
 } from "../utils/cloudinary.js";
-import { response } from "express";
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
 
 // const getAllVideos = asyncHandler(async (req, res) => {
 //     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -291,6 +292,46 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         )
     );
 });
+const getVideoDetails = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+
+    // Increment the views count
+    await Video.findByIdAndUpdate(videoId, { $inc: { views: 1 } });
+
+    // Fetch the video details
+    const video = await Video.findById(videoId).populate("owner", "username"); // Fetch owner details if needed
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+
+    // Fetch the number of likes for this video
+    const likeCount = await Like.countDocuments({ video: videoId });
+
+    // Fetch the number of comments for this video
+    const commentCount = await Comment.countDocuments({ video: videoId });
+
+    // You can also fetch all the comments if needed (optional):
+    // const comments = await Comment.find({ video: videoId }).populate('user', 'username');
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                video,
+                stats: {
+                    views: video.views,
+                    likes: likeCount,
+                    comments: commentCount,
+                },
+            },
+            "Video details fetched successfully"
+        )
+    );
+});
 
 export {
     getAllVideos,
@@ -299,4 +340,5 @@ export {
     updateVideo,
     deleteVideo,
     togglePublishStatus,
+    getVideoDetails,
 };

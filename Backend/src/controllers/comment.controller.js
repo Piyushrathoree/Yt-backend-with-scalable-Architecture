@@ -4,130 +4,96 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-
-const getVideoComments = asyncHandler(async (req, res) => {
+// Fetch comments for a specific video or tweet
+const getComments = asyncHandler(async (req, res) => {
     try {
-        const { videoId } = req.params;
-        if (!videoId) {
-            throw new ApiError(400, "please provide videoId");
-        }
+        const { videoId, tweetId } = req.params;
         const { page = 1, limit = 10 } = req.query;
-        if (!mongoose.Types.ObjectId.isValid(videoId)) {
-            throw new ApiError(400, "this video is not available in database");
+        let filter = {};
+
+        if (videoId) {
+            if (!mongoose.Types.ObjectId.isValid(videoId)) throw new ApiError(400, "Invalid video ID");
+            filter.video = videoId;
+        } else if (tweetId) {
+            if (!mongoose.Types.ObjectId.isValid(tweetId)) throw new ApiError(400, "Invalid tweet ID");
+            filter.tweet = tweetId;
+        } else {
+            throw new ApiError(400, "Please provide either videoId or tweetId");
         }
 
-        const comments = await Comment.find({ video: videoId })
-            .populate("user", "username ")
+        const comments = await Comment.find(filter)
+            .populate("owner", "username")
             .skip((page - 1) * limit)
             .limit(limit);
-        if (!comments) {
-            console.log(" no comments till now ");
-        }
-        res.status(200).json(
-            new ApiResponse(200, comments, "all comment loaded successfully")
-        );
+
+        res.status(200).json(new ApiResponse(200, comments, "Comments loaded successfully"));
     } catch (error) {
-        throw new ApiError(
-            500,
-            "something went wrong while getting all comments " + error.message
-        );
+        throw new ApiError(500, "Error while fetching comments: " + error.message);
     }
 });
 
+// Add a comment to a specific video or tweet
 const addComment = asyncHandler(async (req, res) => {
     try {
         const { comment } = req.body;
-        const { videoId } = req.params;
-        console.log(videoId, comment);
+        const { videoId, tweetId } = req.params;
 
-        if (!videoId) {
-            throw new ApiError(400, "please provide videoId");
-        }
-        if (!comment) {
-            throw new ApiError(400, "please provide comment");
-        }
-        if (!mongoose.Types.ObjectId.isValid(videoId)) {
-            throw new ApiError(400, "this video is not available in database");
+        if (!comment) throw new ApiError(400, "Please provide comment content");
+
+        let newCommentData = { content: comment, owner: req.user?._id };
+
+        if (videoId) {
+            if (!mongoose.Types.ObjectId.isValid(videoId)) throw new ApiError(400, "Invalid video ID");
+            newCommentData.video = videoId;
+        } else if (tweetId) {
+            if (!mongoose.Types.ObjectId.isValid(tweetId)) throw new ApiError(400, "Invalid tweet ID");
+            newCommentData.tweet = tweetId;
+        } else {
+            throw new ApiError(400, "Please provide either videoId or tweetId");
         }
 
-        const newComment = new Comment({
-            owner: req.user?._id,
-            video: videoId,
-            content: comment,
-        });
+        const newComment = new Comment(newCommentData);
         await newComment.save();
 
-        res.status(201).json(
-            new ApiResponse(201, newComment, "comment added successfully")
-        );
+        res.status(201).json(new ApiResponse(201, newComment, "Comment added successfully"));
     } catch (error) {
-        throw new ApiError(
-            500,
-            "something went wrong while adding new comment " + error.message
-        );
+        throw new ApiError(500, "Error while adding comment: " + error.message);
     }
 });
 
+// Update a specific comment
 const updateComment = asyncHandler(async (req, res) => {
     try {
         const { comment } = req.body;
         const { commentId } = req.params;
-        if (!commentId) {
-            throw new ApiError(400, "please provide commentId");
-        }
-        if (!comment) {
-            throw new ApiError(400, "please provide comment");
-        }
-        if (!mongoose.Types.ObjectId.isValid(commentId)) {
-            throw new ApiError(
-                400,
-                "this comment is not available in database"
-            );
-        }
-        const updatedComment = await Comment.findByIdAndUpdate(
-            commentId,
-            { content: comment },
-            { new: true }
-        );
-        if (!updatedComment) {
-            throw new ApiError(404, "comment not found");
-        }
-        res.status(200).json(
-            new ApiResponse(200, updatedComment, "comment updated successfully")
-        );
+
+        if (!commentId || !mongoose.Types.ObjectId.isValid(commentId)) throw new ApiError(400, "Invalid comment ID");
+        if (!comment) throw new ApiError(400, "Please provide comment content");
+
+        const updatedComment = await Comment.findByIdAndUpdate(commentId, { content: comment }, { new: true });
+        if (!updatedComment) throw new ApiError(404, "Comment not found");
+
+        res.status(200).json(new ApiResponse(200, updatedComment, "Comment updated successfully"));
     } catch (error) {
-        throw new ApiError(
-            500,
-            "something went wrong while updating comment" + error.message
-        );
+        throw new ApiError(500, "Error while updating comment: " + error.message);
     }
 });
 
+// Delete a specific comment
 const deleteComment = asyncHandler(async (req, res) => {
     try {
         const { commentId } = req.params;
-        if (!commentId) {
-            throw new ApiError(400, "please provide commentId");
-        }
-        if (!mongoose.Types.ObjectId.isValid(commentId)) {
-            throw new ApiError(
-                400,
-                "this comment is not available in database"
-            );
-        }
+
+        if (!commentId || !mongoose.Types.ObjectId.isValid(commentId)) throw new ApiError(400, "Invalid comment ID");
+
         const deletedComment = await Comment.findByIdAndDelete(commentId);
-        if (!deletedComment) {
-            throw new ApiError(404, "comment not found");
-        }
-        res.status(200).json(
-            new ApiResponse(200, deletedComment, "comment deleted successfully")
-        );
+        if (!deletedComment) throw new ApiError(404, "Comment not found");
+
+        res.status(200).json(new ApiResponse(200, deletedComment, "Comment deleted successfully"));
     } catch (error) {
-        throw new ApiError(
-            500,
-            "something went wrong while deleting comment" + error.message
-        );
+        throw new ApiError(500, "Error while deleting comment: " + error.message);
     }
 });
 
-export { getVideoComments, addComment, updateComment, deleteComment };
+export { getComments, addComment, updateComment, deleteComment };
+    

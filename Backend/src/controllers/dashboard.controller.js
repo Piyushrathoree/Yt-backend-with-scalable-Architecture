@@ -1,3 +1,4 @@
+// channel dashboard
 import mongoose from "mongoose";
 import { Video } from "../models/video.model.js";
 import { subscription } from "../models/subscription.model.js";
@@ -26,7 +27,7 @@ const getChannelStats = asyncHandler(async (req, res) => {
             { $group: { _id: null, totalViews: { $sum: "$views" } } }, // Sum up the views
         ]);
 
-        // Extract the total views count
+        // Extract the total views count    
         const totalViewsCount =
             totalViewsResult.length > 0 ? totalViewsResult[0].totalViews : 0;
 

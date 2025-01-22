@@ -1,6 +1,5 @@
-import mongoose, { isValidObjectId } from "mongoose";
+import mongoose from "mongoose";
 import { Tweet } from "../models/tweet.model.js";
-import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -113,4 +112,15 @@ const deleteTweet = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, deleteTweet, "Tweet deleted successfully"));
 });
 
-export { createTweet, getUserTweets, updateTweet, deleteTweet };
+const getAllTweets = asyncHandler(async (req, res) => {
+    try {
+        const tweet = await Tweet.find();
+        if (!tweet) {
+            res.json(new ApiResponse(200, "no tweet uploaded right now "));
+        }
+    } catch (error) {
+        res.json(new ApiError(500, error.message));
+    }
+});
+
+export { createTweet, getUserTweets, updateTweet, deleteTweet ,getAllTweets };

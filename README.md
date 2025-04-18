@@ -168,7 +168,8 @@ This is the backend for the VideoTube application, a video-sharing platform. The
     npm install
     npm run dev
 
-PORT=8000
+### Env setup
+```bash PORT=8000
 MONGODB_URI=mongodb://localhost:27017
 DB_NAME=videotube
 ACCESS_TOKEN_SECRET=youraccesstokensecret

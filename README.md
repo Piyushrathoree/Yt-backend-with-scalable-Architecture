@@ -1,4 +1,4 @@
-# VideoTube Backend
+# YT Backend with Scalable Architecture
 
 This is the backend for the VideoTube application, a video-sharing platform. The backend is built using Node.js, Express, and MongoDB. It provides APIs for user authentication, video management, playlists, subscriptions, likes, comments, and more.
 
